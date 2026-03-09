@@ -11,7 +11,7 @@ mkdir -p "$SKILL_DIR"
 
 # Copy files
 cp "$SCRIPT_DIR/claude-chat-cleaner" "$SKILL_DIR/claude-chat-cleaner"
-cp "$SCRIPT_DIR/SKILL.md" "$SKILL_DIR/SKILL.md"
+cp "$SCRIPT_DIR/skills/chat-cleanup/SKILL.md" "$SKILL_DIR/SKILL.md"
 
 # Make CLI executable
 chmod +x "$SKILL_DIR/claude-chat-cleaner"
@@ -23,5 +23,6 @@ echo "Usage:"
 echo "  CLI:           ~/.claude/skills/chat-cleanup/claude-chat-cleaner --analyze"
 echo "  Claude Code:   /chat-cleanup"
 echo ""
-echo "Optional — add to PATH for direct CLI access:"
-echo "  ln -sf $SKILL_DIR/claude-chat-cleaner /usr/local/bin/claude-chat-cleaner"
+echo "Tip: For automatic updates, install as a plugin instead:"
+echo "  /plugin marketplace add jainsvaibhav/claude-chat-cleaner"
+echo "  /plugin install chat-cleaner@claude-chat-cleaner"

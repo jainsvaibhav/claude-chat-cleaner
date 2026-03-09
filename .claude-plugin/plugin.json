@@ -1,0 +1,12 @@
+{
+  "name": "chat-cleaner",
+  "description": "Clean up unnecessary Claude Code conversation history files across all projects",
+  "version": "1.0.0",
+  "author": {
+    "name": "Vaibhav Jain"
+  },
+  "homepage": "https://github.com/jainsvaibhav/claude-chat-cleaner",
+  "repository": "https://github.com/jainsvaibhav/claude-chat-cleaner",
+  "license": "MIT",
+  "keywords": ["cleanup", "chat", "maintenance", "disk-space"]
+}

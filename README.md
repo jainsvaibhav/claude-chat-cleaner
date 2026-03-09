@@ -1,6 +1,6 @@
 # claude-chat-cleaner
 
-A CLI tool and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill to clean up unnecessary conversation history files.
+A [Claude Code](https://code.claude.com) plugin and CLI tool to clean up unnecessary conversation history files.
 
 Claude Code stores conversations as `.jsonl` files in `~/.claude/projects/`. Over time, these accumulate empty, failed, interrupted, and trivial sessions that waste disk space. This tool analyzes and cleans them up.
 
@@ -25,9 +25,30 @@ Everything else is classified as **keep**.
 
 ## Installation
 
-### As a Claude Code skill (recommended)
+### As a Claude Code plugin (recommended)
 
-This installs both the CLI tool and a `/chat-cleanup` skill you can invoke directly in Claude Code.
+Plugins get automatic updates when new versions are released.
+
+**Option A — from the marketplace:**
+```
+/plugin marketplace add jainsvaibhav/claude-chat-cleaner
+/plugin install chat-cleaner@claude-chat-cleaner
+```
+
+**Option B — from local directory:**
+```bash
+git clone https://github.com/jainsvaibhav/claude-chat-cleaner.git
+claude --plugin-dir ./claude-chat-cleaner
+```
+
+Then in Claude Code:
+```
+/chat-cleaner:chat-cleanup
+```
+
+### As a standalone skill
+
+If you prefer short skill names (`/chat-cleanup` instead of `/chat-cleaner:chat-cleanup`):
 
 ```bash
 git clone https://github.com/jainsvaibhav/claude-chat-cleaner.git
@@ -35,24 +56,20 @@ cd claude-chat-cleaner
 ./install.sh
 ```
 
-Then in Claude Code, just type:
+Then in Claude Code:
 ```
 /chat-cleanup
 ```
 
-Claude will run the analysis, show you the results, and ask before deleting anything.
-
 ### Standalone CLI only
 
-If you just want the command-line tool without the skill:
+If you just want the command-line tool without Claude Code integration:
 
 ```bash
 curl -o claude-chat-cleaner https://raw.githubusercontent.com/jainsvaibhav/claude-chat-cleaner/main/claude-chat-cleaner
 chmod +x claude-chat-cleaner
 sudo mv claude-chat-cleaner /usr/local/bin/
 ```
-
-Or just copy the `claude-chat-cleaner` file anywhere on your `$PATH`.
 
 ### Remote machines
 
@@ -83,7 +100,13 @@ claude-chat-cleaner --analyze --json
 claude-chat-cleaner --analyze --claude-dir /path/to/.claude
 ```
 
-### Claude Code skill
+### Claude Code (plugin)
+
+```
+/chat-cleaner:chat-cleanup
+```
+
+### Claude Code (standalone skill)
 
 ```
 /chat-cleanup
@@ -130,6 +153,12 @@ Run with --delete to remove rubbish files.
 
 ## Uninstall
 
+**Plugin:**
+```
+/plugin uninstall chat-cleaner
+```
+
+**Standalone skill:**
 ```bash
 rm -rf ~/.claude/skills/chat-cleanup
 ```

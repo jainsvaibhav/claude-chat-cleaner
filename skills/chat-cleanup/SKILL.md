@@ -1,7 +1,6 @@
 ---
 name: chat-cleanup
 description: Clean up unnecessary Claude Code chat files (.jsonl) across projects. Use when the user wants to delete rubbish/empty/failed chats, free up space, or tidy their Claude conversation history. Works locally and on remote hosts via SSH.
-user_invocable: true
 ---
 
 # Claude Chat Cleanup Skill
@@ -14,7 +13,9 @@ Claude Code stores conversation history as `.jsonl` files in `~/.claude/projects
 
 ## Tool Location
 
-The cleanup script is installed at: `~/.claude/skills/chat-cleanup/claude-chat-cleaner`
+The cleanup script is at: `${CLAUDE_PLUGIN_ROOT}/claude-chat-cleaner`
+
+If the plugin root variable is not available, fall back to: `~/.claude/skills/chat-cleanup/claude-chat-cleaner`
 
 ## Workflow
 
@@ -23,7 +24,7 @@ The cleanup script is installed at: `~/.claude/skills/chat-cleanup/claude-chat-c
 Always start with a dry-run to show the user what would be deleted:
 
 ```bash
-~/.claude/skills/chat-cleanup/claude-chat-cleaner --analyze
+python3 ${CLAUDE_PLUGIN_ROOT}/claude-chat-cleaner --analyze
 ```
 
 This will show a per-project breakdown of rubbish vs. useful chats with content previews.
@@ -37,7 +38,7 @@ Present the summary table and **always ask before deleting**. Never auto-delete.
 Once the user confirms:
 
 ```bash
-~/.claude/skills/chat-cleanup/claude-chat-cleaner --delete
+python3 ${CLAUDE_PLUGIN_ROOT}/claude-chat-cleaner --delete
 ```
 
 ### Remote Hosts
@@ -46,7 +47,7 @@ To clean up a remote machine via SSH:
 
 ```bash
 # First, copy the script to the remote host
-scp ~/.claude/skills/chat-cleanup/claude-chat-cleaner <hostname>:~/claude-chat-cleaner
+scp ${CLAUDE_PLUGIN_ROOT}/claude-chat-cleaner <hostname>:~/claude-chat-cleaner
 
 # Then run remotely
 ssh <hostname> "python3 ~/claude-chat-cleaner --analyze"
