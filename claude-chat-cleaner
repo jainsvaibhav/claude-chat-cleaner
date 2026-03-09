@@ -1,0 +1,303 @@
+#!/usr/bin/env python3
+"""
+claude-chat-cleaner — Clean up unnecessary Claude Code chat files.
+
+Analyzes .jsonl conversation files in ~/.claude/projects/ and identifies
+empty, failed, interrupted, or trivial sessions for deletion.
+
+Usage:
+    claude-chat-cleaner --analyze              # Dry-run: show what would be deleted
+    claude-chat-cleaner --delete               # Delete rubbish files
+    claude-chat-cleaner --analyze --json       # Machine-readable output
+    claude-chat-cleaner --project UMA          # Only process projects matching "UMA"
+    claude-chat-cleaner --claude-dir /path     # Custom .claude directory
+
+Shareable: copy this single file to any machine with Python 3.6+.
+No dependencies beyond the standard library.
+"""
+
+import argparse
+import json
+import os
+import glob
+import sys
+
+SKIP_PREFIXES = (
+    "<system-reminder",
+    "<available-deferred",
+    "<local-command",
+    "<command-name>",
+    "<command-message>",
+    "<local-command-caveat",
+)
+
+
+def extract_messages(filepath):
+    """Extract meaningful user and assistant messages from a .jsonl chat file."""
+    user_msgs = []
+    assistant_msgs = []
+    title = None
+
+    with open(filepath, errors="replace") as fh:
+        for line in fh:
+            try:
+                obj = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+            record_type = obj.get("type", "")
+
+            if record_type == "custom-title":
+                title = obj.get("title", "")
+
+            if record_type not in ("user", "assistant"):
+                continue
+
+            msg = obj.get("message", {})
+            if isinstance(msg, dict):
+                content = msg.get("content", "")
+            elif isinstance(msg, str):
+                content = msg
+            else:
+                continue
+
+            text = ""
+            if isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        candidate = str(part.get("text", "")).strip()
+                        if any(candidate.startswith(p) for p in SKIP_PREFIXES):
+                            continue
+                        text = candidate
+                        break
+            elif isinstance(content, str):
+                text = content.strip()
+                if any(text.startswith(p) for p in SKIP_PREFIXES):
+                    text = ""
+
+            if text and len(text) > 5:
+                if record_type == "user":
+                    user_msgs.append(text)
+                else:
+                    assistant_msgs.append(text)
+
+    return user_msgs, assistant_msgs, title
+
+
+def classify(user_msgs, assistant_msgs):
+    """Classify a chat as rubbish or useful. Returns (is_rubbish, reason)."""
+    if not user_msgs and not assistant_msgs:
+        return True, "Empty — no conversation content"
+
+    if len(user_msgs) <= 1 and all(len(m) < 50 for m in user_msgs):
+        label = user_msgs[0][:60] if user_msgs else "(none)"
+        return True, f"Trivial — '{label}'"
+
+    first_two = user_msgs[:2]
+    if first_two and all(
+        any(kw in m.lower() for kw in ("init", "error", "interrupted"))
+        for m in first_two
+    ):
+        return True, "Failed/interrupted session"
+
+    return False, ""
+
+
+def format_size(size_bytes):
+    """Human-readable file size."""
+    if size_bytes < 1024:
+        return f"{size_bytes}B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes // 1024}K"
+    else:
+        return f"{size_bytes / (1024 * 1024):.1f}M"
+
+
+def analyze_project(dir_path):
+    """Analyze all .jsonl files in a project directory."""
+    files = sorted(glob.glob(os.path.join(dir_path, "*.jsonl")))
+    rubbish = []
+    useful = []
+
+    for fname in files:
+        try:
+            size = os.path.getsize(fname)
+            user_msgs, assistant_msgs, title = extract_messages(fname)
+            is_rubbish, reason = classify(user_msgs, assistant_msgs)
+
+            entry = {
+                "path": fname,
+                "basename": os.path.basename(fname),
+                "short_id": os.path.basename(fname)[:8],
+                "size": size,
+                "size_str": format_size(size),
+                "title": title,
+                "user_count": len(user_msgs),
+                "assistant_count": len(assistant_msgs),
+                "first_user_msg": " ".join(
+                    (user_msgs[0] if user_msgs else "").split()
+                )[:120],
+                "is_rubbish": is_rubbish,
+                "reason": reason,
+            }
+
+            if is_rubbish:
+                rubbish.append(entry)
+            else:
+                useful.append(entry)
+        except Exception as e:
+            print(f"  ERROR: {os.path.basename(fname)}: {e}", file=sys.stderr)
+
+    return rubbish, useful
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Clean up unnecessary Claude Code chat files.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument(
+        "--analyze",
+        action="store_true",
+        default=True,
+        help="Show what would be deleted (default, dry-run)",
+    )
+    parser.add_argument(
+        "--delete",
+        action="store_true",
+        help="Actually delete rubbish files",
+    )
+    parser.add_argument(
+        "--project",
+        type=str,
+        default=None,
+        help="Only process projects matching this substring",
+    )
+    parser.add_argument(
+        "--min-size",
+        type=int,
+        default=None,
+        help="Only consider files under this size in bytes",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output results as JSON",
+    )
+    parser.add_argument(
+        "--claude-dir",
+        type=str,
+        default=os.path.expanduser("~/.claude"),
+        help="Path to .claude directory (default: ~/.claude)",
+    )
+
+    args = parser.parse_args()
+
+    projects_dir = os.path.join(args.claude_dir, "projects")
+    if not os.path.isdir(projects_dir):
+        print(f"No projects directory found at {projects_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    projects = sorted(
+        d
+        for d in os.listdir(projects_dir)
+        if os.path.isdir(os.path.join(projects_dir, d))
+    )
+
+    if args.project:
+        projects = [p for p in projects if args.project.lower() in p.lower()]
+
+    if not projects:
+        print("No matching projects found.", file=sys.stderr)
+        sys.exit(1)
+
+    all_results = {}
+    total_rubbish = 0
+    total_keep = 0
+    total_rubbish_bytes = 0
+    total_deleted = 0
+
+    for proj in projects:
+        dir_path = os.path.join(projects_dir, proj)
+        rubbish, useful = analyze_project(dir_path)
+
+        # Apply size filter if specified
+        if args.min_size:
+            rubbish = [e for e in rubbish if e["size"] < args.min_size]
+
+        total_rubbish += len(rubbish)
+        total_keep += len(useful)
+        total_rubbish_bytes += sum(e["size"] for e in rubbish)
+
+        all_results[proj] = {"rubbish": rubbish, "useful": useful}
+
+        if args.json:
+            continue
+
+        # Print human-readable output
+        total_chats = len(rubbish) + len(useful)
+        print(f"\n## {proj} ({total_chats} chats)")
+
+        if rubbish:
+            print(f"  RUBBISH ({len(rubbish)}):")
+            for e in rubbish:
+                t = f" [{e['title']}]" if e["title"] else ""
+                print(f"    {e['size_str']:>5s}  {e['short_id']}...{t}  — {e['reason']}")
+        if useful:
+            print(f"  KEEP ({len(useful)}):")
+            for e in useful:
+                t = f" [{e['title']}]" if e["title"] else ""
+                preview = e["first_user_msg"][:90]
+                print(
+                    f"    {e['size_str']:>5s}  {e['short_id']}...{t}"
+                    f"  — {e['user_count']}u/{e['assistant_count']}a — {preview}"
+                )
+        if not rubbish:
+            print("  (nothing to delete)")
+
+        # Delete if requested
+        if args.delete and rubbish:
+            deleted = 0
+            for e in rubbish:
+                try:
+                    os.unlink(e["path"])
+                    deleted += 1
+                except Exception as ex:
+                    print(f"  FAILED to delete {e['basename']}: {ex}", file=sys.stderr)
+            total_deleted += deleted
+            print(f"  >>> Deleted {deleted} files")
+
+    # JSON output
+    if args.json:
+        output = {
+            "projects": {},
+            "summary": {
+                "total_rubbish": total_rubbish,
+                "total_keep": total_keep,
+                "total_rubbish_bytes": total_rubbish_bytes,
+            },
+        }
+        for proj, data in all_results.items():
+            output["projects"][proj] = {
+                "rubbish": [
+                    {k: v for k, v in e.items() if k != "path"} for e in data["rubbish"]
+                ],
+                "useful": [
+                    {k: v for k, v in e.items() if k != "path"} for e in data["useful"]
+                ],
+            }
+        print(json.dumps(output, indent=2))
+        return
+
+    # Summary
+    print(f"\n{'=' * 50}")
+    print(f"TOTAL: {total_rubbish} rubbish ({format_size(total_rubbish_bytes)}), {total_keep} keep")
+    if args.delete:
+        print(f"DELETED: {total_deleted} files")
+    else:
+        print(f"Run with --delete to remove rubbish files.")
+
+
+if __name__ == "__main__":
+    main()
