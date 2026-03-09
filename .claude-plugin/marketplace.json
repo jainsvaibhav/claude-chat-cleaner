@@ -10,10 +10,7 @@
   "plugins": [
     {
       "name": "chat-cleaner",
-      "source": {
-        "source": "github",
-        "repo": "jainsvaibhav/claude-chat-cleaner"
-      },
+      "source": "./",
       "description": "Clean up unnecessary Claude Code conversation history files across all projects",
       "version": "1.0.0",
       "keywords": ["cleanup", "chat", "maintenance", "disk-space"],
